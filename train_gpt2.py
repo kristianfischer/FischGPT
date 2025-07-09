@@ -26,7 +26,7 @@ class CasualSelfAttention(nn.Module):
         # nh is "number of heads," hs is "head size," and C (number of channels) = nh * hs
         # e.g. in GPT-2 (124M), n_head=12, hs=64, so nh*hs=C=768 channels in the transformer
         qkv = self.c_attn(x)
-        q, k, v = qkv.chunk(3, dim=2)
+        q, k, v = qkv.split(self.n_embd, dim=2)
         k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
         q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
         v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
@@ -186,15 +186,11 @@ while x.size(1) < max_length:
     with torch.no_grad():
         logits = model(x)
         logits = logits[:, -1, :]
-        
-        # Apply temperature and handle extreme values
-        temperature = 0.8
-        logits = logits / temperature
-        
-        # Sample directly from the distribution
         probs = F.softmax(logits, dim=-1)
-        next_token = torch.multinomial(probs, num_samples=1)
-        x = torch.cat((x, next_token), dim=1)
+        topk_probs, topk_indices = torch.topk(probs, 50, dim=-1)
+        ix = torch.multinomial(topk_probs, 1)
+        xcol = torch.gather(topk_indices, -1, ix)
+        x = torch.cat((x, xcol), dim=1)
 
 for i in range(num_return_sequences):
     tokens = x[i, :max_length].tolist() 
