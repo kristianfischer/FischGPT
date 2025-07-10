@@ -5,7 +5,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 import tiktoken
 import sys
-from data_loader import DataLoaderLite
+from src.data.data_loader import DataLoaderLite
 from src.config.gpt_config import GPTConfig
 
 class CasualSelfAttention(nn.Module):
