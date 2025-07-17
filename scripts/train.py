@@ -4,9 +4,11 @@ import torch.nn as nn
 from torch.nn import functional as F
 import tiktoken
 import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from src.data.data_loader import DataLoaderLite
 from src.config.gpt_config import GPTConfig
-from evaluation.hs_evaluation import render_example, iterate_examples
+from src.evaluation.hellaswag import render_example, iterate_examples
 import time
 from src.model.gpt import GPT
 from torch.distributed import init_process_group, destroy_process_group
@@ -105,7 +107,7 @@ warmup_steps = 715
 max_steps = 19073
 
 # optimize
-optimizer = raw_model.configure_optimizers(weight_decay=0.1, learning_rate=6e-4, device=device)
+optimizer = raw_model.configure_optimizers(weight_decay=0.1, learning_rate=6e-4, device_type=device)
 
 # create the log directory we will write checkpoints to and log to
 log_dir = "log"
