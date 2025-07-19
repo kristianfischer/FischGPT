@@ -78,7 +78,7 @@ torch.set_float32_matmul_precision('high')
 enc = tiktoken.get_encoding("gpt2")
 
 total_batch_size = 524288
-B = 16
+B = 64
 T = 1024
 assert total_batch_size % (B * T * ddp_world_size) == 0
 
@@ -99,10 +99,10 @@ if ddp:
 
 raw_model = model.module if ddp else model
 
-max_lr = 6e-4
+max_lr = 6e-4 * 3
 min_lr = max_lr * 0.1
 warmup_steps = 715
-max_steps = 19073
+max_steps = 19073 * 4
 
 # optimize
 optimizer = raw_model.configure_optimizers(weight_decay=0.1, learning_rate=6e-4, device=device)
