@@ -1,6 +1,6 @@
 import torch.nn as nn
-from model.attention import CasualSelfAttention
-from model.mlp import MLP
+from src.model.attention import CasualSelfAttention
+from src.model.mlp import MLP
 
 class Block(nn.Module):
 

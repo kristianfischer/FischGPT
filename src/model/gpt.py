@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-from model.block import Block
-from config.gpt_config import GPTConfig
+from src.model.block import Block
+from src.config.gpt_config import GPTConfig
 import inspect
 
 class GPT(nn.Module):
