@@ -58,6 +58,12 @@ train_loader = DataLoaderLite(
     split="train", dataset_name="oasst1_sft"
 )
 
+# Proper validation split - first shard is held out for validation
+val_loader = DataLoaderLite(
+    B=B, T=T, process_rank=ddp_rank, num_processes=ddp_world_size,
+    split="val", dataset_name="oasst1_sft"
+)
+
 # Load pretrained model
 checkpoint = torch.load(pretrained_chkp, map_location=device)
 model = GPT(checkpoint['config'])
@@ -128,6 +134,64 @@ for step in range(max_steps):
     t0 = time.time()
     last_step = (step == max_steps - 1)
 
+    # Evaluate validation loss periodically (like pretrain every 250 steps)
+    if step % 1000 == 0 or last_step:
+        model.eval()
+        val_loader.reset()
+        with torch.no_grad():
+            val_loss_accum = 0.0
+            val_loss_steps = 20
+            for _ in range(val_loss_steps):
+                x, y = val_loader.next_batch()
+                x, y = x.to(device), y.to(device)
+                with torch.autocast(device_type=device, dtype=torch.bfloat16):
+                    logits, loss = model(x, y)
+                loss = loss / val_loss_steps
+                val_loss_accum += loss.detach()
+        if ddp:
+            dist.all_reduce(val_loss_accum, op=dist.ReduceOp.AVG)
+        if master_process:
+            print(f"validation loss: {val_loss_accum.item():.4f}")
+            with open(log_file, "a") as f:
+                f.write(f"{step} val {val_loss_accum.item():.4f}\n")
+            # Save checkpoint after validation evaluation (like pretrain)
+            if step > 0 and (step % 1500 == 0 or last_step):
+                checkpoint_path = os.path.join(log_dir, f"model_{step:05d}.pt")
+                checkpoint = {
+                    'model': raw_model.state_dict(),
+                    'config': raw_model.config,
+                    'step': step,
+                    'val_loss': val_loss_accum.item()
+                }
+                torch.save(checkpoint, checkpoint_path)
+                print(f"Saved checkpoint: {checkpoint_path}")
+
+    # Generate samples every 1500 steps
+    if master_process and step > 0 and step % 1500 == 0:
+        print(f"\n=== Generation Samples at Step {step} ===")
+        for i, prompt in enumerate(test_prompts):
+            print(f"\nPrompt {i+1}: {prompt}")
+            response = generate_sample(raw_model, prompt)
+            # Extract just the assistant's response
+            if "<|assistant|>" in response:
+                assistant_response = response.split("<|assistant|>")[-1].split("<|endoftext|>")[0]
+                print(f"Response: {assistant_response.strip()}")
+            else:
+                print(f"Response: {response}")
+        print("=" * 50 + "\n")
+        
+        # Log generations to file
+        with open(os.path.join(log_dir, f"generations_{step:05d}.txt"), "w") as f:
+            f.write(f"=== Generation Samples at Step {step} ===\n\n")
+            for i, prompt in enumerate(test_prompts):
+                response = generate_sample(raw_model, prompt)
+                f.write(f"Prompt {i+1}: {prompt}\n")
+                if "<|assistant|>" in response:
+                    assistant_response = response.split("<|assistant|>")[-1].split("<|endoftext|>")[0]
+                    f.write(f"Response: {assistant_response.strip()}\n\n")
+                else:
+                    f.write(f"Response: {response}\n\n")
+
     model.train()
     optimizer.zero_grad()
     loss_accum = 0.0
@@ -158,43 +222,6 @@ for step in range(max_steps):
         print(f"step {step:5d} | loss: {loss_accum.item():.6f} | lr {lr:.4e} | norm: {norm:.4f} | dt: {dt*1000:.2f}ms | tok/sec: {tokens_per_sec:.2f}")
         with open(log_file, "a") as f:
             f.write(f"{step} train {loss_accum.item():.6f}\n")
-        
-        if step > 0 and step % 3000 == 0:
-            print(f"\n=== Generation Samples at Step {step} ===")
-            for i, prompt in enumerate(test_prompts):
-                print(f"\nPrompt {i+1}: {prompt}")
-                response = generate_sample(raw_model, prompt)
-                # Extract just the assistant's response
-                if "<|assistant|>" in response:
-                    assistant_response = response.split("<|assistant|>")[-1].split("<|endoftext|>")[0]
-                    print(f"Response: {assistant_response.strip()}")
-                else:
-                    print(f"Response: {response}")
-            print("=" * 50 + "\n")
-            
-            # Log generations to file
-            with open(os.path.join(log_dir, f"generations_{step:05d}.txt"), "w") as f:
-                f.write(f"=== Generation Samples at Step {step} ===\n\n")
-                for i, prompt in enumerate(test_prompts):
-                    response = generate_sample(raw_model, prompt)
-                    f.write(f"Prompt {i+1}: {prompt}\n")
-                    if "<|assistant|>" in response:
-                        assistant_response = response.split("<|assistant|>")[-1].split("<|endoftext|>")[0]
-                        f.write(f"Response: {assistant_response.strip()}\n\n")
-                    else:
-                        f.write(f"Response: {response}\n\n")
-        
-        # Save checkpoint every 1500 steps
-        if step > 0 and (step % 1500 == 0 or last_step):
-            checkpoint_path = os.path.join(log_dir, f"model_{step:05d}.pt")
-            checkpoint = {
-                'model': raw_model.state_dict(),
-                'config': raw_model.config,
-                'step': step,
-                'val_loss': loss_accum.item(),
-            }
-            torch.save(checkpoint, checkpoint_path)
-            print(f"Saved checkpoint: {checkpoint_path}")
 
 if ddp:
     destroy_process_group()

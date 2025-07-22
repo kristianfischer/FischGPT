@@ -1,4 +1,4 @@
 src/data/datasets/
-*.tar.gz
 logs/
 checkpoints/
+*.tar.gz
