@@ -16,7 +16,7 @@ from tqdm import tqdm # pip install tqdm
 
 
 # ------------------------------------------
-local_dir = "../src/data/datasets/edu_fineweb10B"
+local_dir = ".src/data/datasets/edu_fineweb10B"
 remote_name = "sample-10BT"
 shard_size = int(1e8) # 100M tokens per shard, total of 100 shards
 
