@@ -44,10 +44,10 @@ torch.set_float32_matmul_precision('high')
 
 B = 16  # Smaller batch for more gradient updates
 T = 1024
-max_steps = 15000  # ~5-10 epochs through dataset
-max_lr = 5e-6  # Much lower LR for fine-tuning pretrained model
+max_steps = 20000  # ~5-10 epochs through dataset
+max_lr = 8e-6  # Much lower LR for fine-tuning pretrained model
 min_lr = max_lr * 0.1
-warmup_steps = 450  # Longer warmup for stability
+warmup_steps = 600  # Longer warmup for stability
 
 total_batch_size = 16384  # Total tokens per optimization step
 assert total_batch_size % (B * T * ddp_world_size) == 0
@@ -65,7 +65,7 @@ val_loader = DataLoaderLite(
 )
 
 # Load pretrained model
-checkpoint = torch.load(pretrained_chkp, map_location=device)
+checkpoint = torch.load(pretrained_chkp, map_location=device, weights_only=False)
 model = GPT(checkpoint['config'])
 model.load_state_dict(checkpoint['model'])
 model.to(device)
