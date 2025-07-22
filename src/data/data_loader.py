@@ -3,7 +3,7 @@ import numpy as np
 import os
 
 class DataLoaderLite:
-    def __init__(self, B, T, process_rank, num_processes, split):
+    def __init__(self, B, T, process_rank, num_processes, split, dataset_name):
         self.B = B
         self.T = T
         self.process_rank = process_rank
@@ -11,7 +11,7 @@ class DataLoaderLite:
         assert split in {'train', "val"}
 
          # get the shard filenames
-        data_root = "src/data/datasets/edu_fineweb10B"
+        data_root = f"src/data/datasets/{dataset_name}"
         shards = os.listdir(data_root)
         shards = [s for s in shards if split in s]
         shards = sorted(shards)
